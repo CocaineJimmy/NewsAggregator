@@ -8,6 +8,7 @@ import {
   news,
   comments,
   newsViews,
+  commentLikes,
   type User,
   type InsertUser,
   type Category,
@@ -17,6 +18,8 @@ import {
   type UpdateNews,
   type Comment,
   type InsertComment,
+  type InsertCommentLike,
+  type CommentLike,
 } from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
@@ -47,9 +50,13 @@ export interface IStorage {
   incrementNewsViews(id: string): Promise<void>;
   
   // Comments
-  getCommentsByNewsId(newsId: string): Promise<(Comment & { user: User })[]>;
+  getCommentsByNewsId(newsId: string, userId?: string): Promise<(Comment & { user: User; likesCount: number; dislikesCount: number; userLike?: boolean | null })[]>;
   createComment(comment: InsertComment): Promise<Comment>;
   getCommentsByUserId(userId: string): Promise<(Comment & { news: News })[]>;
+  
+  // Comment Likes
+  likeComment(userId: string, commentId: string, isLike: boolean): Promise<void>;
+  removeLikeFromComment(userId: string, commentId: string): Promise<void>;
   
   // News Views (for XP tracking)
   hasUserViewedNews(userId: string, newsId: string): Promise<boolean>;
@@ -196,20 +203,28 @@ export class DbStorage implements IStorage {
   }
 
   // Comments
-  async getCommentsByNewsId(newsId: string): Promise<(Comment & { user: User })[]> {
+  async getCommentsByNewsId(newsId: string, userId?: string): Promise<(Comment & { user: User; likesCount: number; dislikesCount: number; userLike?: boolean | null })[]> {
     const result = await db
       .select({
         comment: comments,
         user: users,
+        likesCount: sql<number>`cast(count(case when ${commentLikes.isLike} = true then 1 end) as int)`,
+        dislikesCount: sql<number>`cast(count(case when ${commentLikes.isLike} = false then 1 end) as int)`,
+        userLike: userId ? sql<boolean | null>`case when ${commentLikes.userId} = ${userId} then ${commentLikes.isLike} else null end` : sql<null>`null`,
       })
       .from(comments)
       .leftJoin(users, eq(comments.userId, users.id))
+      .leftJoin(commentLikes, eq(comments.id, commentLikes.commentId))
       .where(eq(comments.newsId, newsId))
+      .groupBy(comments.id, users.id, userId ? commentLikes.userId : sql`1`, userId ? commentLikes.isLike : sql`1`)
       .orderBy(desc(comments.createdAt));
 
     return result.map(r => ({
       ...r.comment,
       user: r.user!,
+      likesCount: r.likesCount,
+      dislikesCount: r.dislikesCount,
+      userLike: r.userLike,
     }));
   }
 
@@ -233,6 +248,23 @@ export class DbStorage implements IStorage {
       ...r.comment,
       news: r.news!,
     }));
+  }
+
+  // Comment Likes
+  async likeComment(userId: string, commentId: string, isLike: boolean): Promise<void> {
+    await db
+      .insert(commentLikes)
+      .values({ userId, commentId, isLike })
+      .onConflictDoUpdate({
+        target: [commentLikes.userId, commentLikes.commentId],
+        set: { isLike, createdAt: new Date() },
+      });
+  }
+
+  async removeLikeFromComment(userId: string, commentId: string): Promise<void> {
+    await db
+      .delete(commentLikes)
+      .where(and(eq(commentLikes.userId, userId), eq(commentLikes.commentId, commentId)));
   }
 
   // News Views

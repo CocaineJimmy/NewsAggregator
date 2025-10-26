@@ -107,3 +107,26 @@ export const newsViews = pgTable("news_views", {
 }));
 
 export type NewsView = typeof newsViews.$inferSelect;
+
+// Comment likes table
+export const commentLikes = pgTable("comment_likes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  commentId: varchar("comment_id").notNull().references(() => comments.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  isLike: boolean("is_like").notNull(), // true for like, false for dislike
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  // Ensure a user can only like/dislike a comment once
+  uniqueUserComment: unique().on(table.userId, table.commentId),
+  // Index for fast lookups
+  userCommentIdx: index("idx_comment_likes_user_comment").on(table.userId, table.commentId),
+  commentIdx: index("idx_comment_likes_comment").on(table.commentId),
+}));
+
+export const insertCommentLikeSchema = createInsertSchema(commentLikes).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertCommentLike = z.infer<typeof insertCommentLikeSchema>;
+export type CommentLike = typeof commentLikes.$inferSelect;

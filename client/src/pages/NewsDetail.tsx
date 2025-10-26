@@ -44,6 +44,9 @@ type CommentWithUser = {
     avatarUrl: string | null;
     level: number;
   };
+  likesCount: number;
+  dislikesCount: number;
+  userLike?: boolean | null;
 };
 
 export default function NewsDetail() {
@@ -194,6 +197,7 @@ export default function NewsDetail() {
               {comments.map((comment) => (
                 <CommentItem 
                   key={comment.id}
+                  id={comment.id}
                   username={comment.user.username}
                   avatarUrl={comment.user.avatarUrl || undefined}
                   level={comment.user.level}
@@ -202,6 +206,10 @@ export default function NewsDetail() {
                     addSuffix: true, 
                     locale: ru 
                   })}
+                  likesCount={comment.likesCount}
+                  dislikesCount={comment.dislikesCount}
+                  userLike={comment.userLike}
+                  newsId={newsId}
                 />
               ))}
             </div>
