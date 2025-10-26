@@ -15,12 +15,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const categories = [
-  { id: "all", name: "Все новости" },
-  { id: "events", name: "Мероприятия" },
-  { id: "news", name: "События" },
-  { id: "economy", name: "Экономика" },
-  { id: "tech", name: "Технологии" },
-  { id: "sports", name: "Спорт" },
+  { id: "all", slug: "all", name: "Все новости" },
+  { id: "events", slug: "events", name: "Мероприятия" },
+  { id: "news", slug: "news", name: "События" },
+  { id: "economy", slug: "economy", name: "Экономика" },
+  { id: "tech", slug: "tech", name: "Технологии" },
+  { id: "sports", slug: "sports", name: "Спорт" },
 ];
 
 export default function Header() {
@@ -28,7 +28,7 @@ export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
   const { toast } = useToast();
-  
+
   const currentCategory = new URLSearchParams(location.split("?")[1] || "").get("category") || "all";
 
   const handleLogout = async () => {
@@ -63,16 +63,16 @@ export default function Header() {
           <nav className="hidden md:flex items-center gap-1 flex-1 justify-center px-6">
             <div className="flex items-center gap-1 overflow-x-auto">
               {categories.map((cat) => (
-                <Link key={cat.id} href={cat.id === "all" ? "/" : `/?category=${cat.id}`}>
+                <Link key={cat.id} href={cat.slug === "all" ? "/" : `/?category=${cat.slug}`}>
                   <Button
                     variant="ghost"
                     size="sm"
                     className={`whitespace-nowrap ${
-                      currentCategory === cat.id
+                      currentCategory === cat.slug
                         ? "border-b-2 border-primary rounded-none"
                         : ""
                     }`}
-                    data-testid={`link-category-${cat.id}`}
+                    data-testid={`link-category-${cat.slug}`}
                   >
                     {cat.name}
                   </Button>
@@ -84,7 +84,7 @@ export default function Header() {
           {/* Right Side Actions */}
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            
+
             {isAuthenticated ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -139,13 +139,12 @@ export default function Header() {
           <nav className="md:hidden pb-4 border-t mt-2 pt-4">
             <div className="flex flex-col gap-1">
               {categories.map((cat) => (
-                <Link key={cat.id} href={cat.id === "all" ? "/" : `/?category=${cat.id}`}>
+                <Link key={cat.id} href={cat.slug === "all" ? "/" : `/?category=${cat.slug}`}>
                   <Button
-                    variant="ghost"
-                    className={`w-full justify-start ${
-                      currentCategory === cat.id ? "bg-accent" : ""
-                    }`}
-                    onClick={() => setMobileMenuOpen(false)}
+                    variant={currentCategory === cat.slug ? "default" : "ghost"}
+                    size="sm"
+                    className="w-full justify-start"
+                    data-testid={`mobile-link-category-${cat.slug}`}
                   >
                     {cat.name}
                   </Button>
