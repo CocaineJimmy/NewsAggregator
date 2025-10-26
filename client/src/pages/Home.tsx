@@ -27,12 +27,7 @@ export default function Home() {
   const queryClient = useQueryClient();
   const categorySlug = new URLSearchParams(location.split("?")[1] || "").get("category") || "all";
 
-  // Invalidate queries when category changes to force refetch
-  useEffect(() => {
-    queryClient.invalidateQueries({ queryKey: ["/api/news"] });
-  }, [categorySlug, queryClient]);
-
-  const { data: newsItems, isLoading } = useQuery<NewsItem[]>({
+  const { data: newsItems, isLoading, refetch } = useQuery<NewsItem[]>({
     queryKey: ["/api/news", categorySlug],
     queryFn: async () => {
       const url = categorySlug === "all"
@@ -42,8 +37,14 @@ export default function Home() {
       if (!res.ok) throw new Error("Failed to fetch news");
       return res.json();
     },
-    staleTime: 0, // Always refetch when component mounts
+    staleTime: 0,
+    refetchOnMount: true,
   });
+
+  // Refetch when category changes
+  useEffect(() => {
+    refetch();
+  }, [categorySlug, refetch]);
 
   return (
     <div className="min-h-screen bg-background">
