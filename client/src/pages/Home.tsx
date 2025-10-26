@@ -1,11 +1,11 @@
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import NewsCard from "@/components/NewsCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
-import { useMemo } from "react";
+import { useEffect } from "react";
 
 interface NewsItem {
   id: string;
@@ -24,13 +24,10 @@ interface NewsItem {
 
 export default function Home() {
   const [location] = useLocation();
-  
-  const categorySlug = useMemo(() => {
-    const params = new URLSearchParams(location.split("?")[1] || "");
-    return params.get("category") || "all";
-  }, [location]);
+  const queryClient = useQueryClient();
+  const categorySlug = new URLSearchParams(location.split("?")[1] || "").get("category") || "all";
 
-  const { data: newsItems, isLoading } = useQuery<NewsItem[]>({
+  const { data: newsItems, isLoading, refetch } = useQuery<NewsItem[]>({
     queryKey: ["/api/news", categorySlug],
     queryFn: async () => {
       const url = categorySlug === "all"
@@ -40,7 +37,14 @@ export default function Home() {
       if (!res.ok) throw new Error("Failed to fetch news");
       return res.json();
     },
+    staleTime: 0,
+    refetchOnMount: true,
   });
+
+  // Refetch when category changes
+  useEffect(() => {
+    refetch();
+  }, [categorySlug, refetch]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -88,11 +92,7 @@ export default function Home() {
           </div>
         ) : (
           <div className="text-center py-12">
-            <p className="text-lg text-muted-foreground">
-              {categorySlug === "all" 
-                ? "Новостей пока нет" 
-                : "В этой категории новостей пока нет"}
-            </p>
+            <p className="text-lg text-muted-foreground">Новостей пока нет</p>
           </div>
         )}
       </main>

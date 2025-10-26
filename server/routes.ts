@@ -254,7 +254,7 @@ router.delete("/api/news/:id", requireAdmin, async (req: Request, res: Response)
 // Comments routes
 router.get("/api/news/:newsId/comments", async (req: Request, res: Response) => {
   try {
-    const comments = await storage.getCommentsByNewsId(req.params.newsId, req.session.userId);
+    const comments = await storage.getCommentsByNewsId(req.params.newsId);
     res.json(comments);
   } catch (error) {
     res.status(500).json({ error: "Ошибка при получении комментариев" });
@@ -282,26 +282,6 @@ router.post("/api/news/:newsId/comments", requireAuth, async (req: Request, res:
       return res.status(400).json({ error: validationError.message });
     }
     res.status(500).json({ error: "Ошибка при создании комментария" });
-  }
-});
-
-// Comment likes
-router.post("/api/comments/:commentId/like", requireAuth, async (req: Request, res: Response) => {
-  try {
-    const { isLike } = req.body;
-    await storage.likeComment(req.session.userId!, req.params.commentId, isLike);
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: "Ошибка при оценке комментария" });
-  }
-});
-
-router.delete("/api/comments/:commentId/like", requireAuth, async (req: Request, res: Response) => {
-  try {
-    await storage.removeLikeFromComment(req.session.userId!, req.params.commentId);
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: "Ошибка при удалении оценки комментария" });
   }
 });
 
