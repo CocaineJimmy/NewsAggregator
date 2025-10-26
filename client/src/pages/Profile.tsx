@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { formatDistanceToNow } from "date-fns";
+import { ru } from "date-fns/locale";
 import Header from "@/components/Header";
 import UserLevelBadge from "@/components/UserLevelBadge";
 import XPProgress from "@/components/XPProgress";
@@ -7,72 +10,159 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Edit, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import { useAuth } from "@/contexts/AuthContext";
+import { queryClient } from "@/lib/queryClient";
 
-//todo: remove mock functionality
-const mockUser = {
-  username: "Алексей",
-  email: "alexey@example.com",
-  level: 5,
-  currentXP: 450,
-  requiredXP: 500,
-  avatarUrl: "",
-  commentsHistory: [
-    {
-      id: "1",
-      newsTitle: "Открытие нового культурного центра в центре Минска",
-      newsId: "1",
-      content: "Отличная новость! Давно ждал открытия этого центра.",
-      createdAt: "2 часа назад",
-    },
-    {
-      id: "2",
-      newsTitle: "IT-парк расширяется: новые резиденты и проекты",
-      newsId: "6",
-      content: "Здорово, что IT-сектор в городе развивается!",
-      createdAt: "1 день назад",
-    },
-    {
-      id: "3",
-      newsTitle: "Чемпионат города по футболу: итоги первого тура",
-      newsId: "8",
-      content: "Отличные результаты у нашей команды!",
-      createdAt: "2 дня назад",
-    },
-  ],
+type UserProfile = {
+  id: string;
+  username: string;
+  email: string;
+  avatarUrl: string | null;
+  xp: number;
+  level: number;
+  comments: Array<{
+    id: string;
+    content: string;
+    createdAt: string;
+    news: {
+      id: string;
+      title: string;
+    };
+  }>;
 };
 
 export default function Profile() {
+  const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
-  const [username, setUsername] = useState(mockUser.username);
-  const [avatar, setAvatar] = useState(mockUser.avatarUrl);
+  const [username, setUsername] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string>("");
   const { toast } = useToast();
 
+  const { data: profile, isLoading } = useQuery<UserProfile>({
+    queryKey: ["/api/users", user?.id],
+    enabled: !!user?.id,
+  });
+
+  // Set initial values when profile loads
+  useEffect(() => {
+    if (profile) {
+      setUsername(profile.username);
+      setAvatarPreview(profile.avatarUrl || "");
+    }
+  }, [profile]);
+
+  const updateProfileMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const response = await fetch(`/api/users/${user?.id}`, {
+        method: "PUT",
+        body: formData,
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || "Ошибка при обновлении профиля");
+      }
+      
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api", "me"] });
+      toast({
+        title: "Профиль обновлен",
+        description: "Ваши изменения успешно сохранены",
+      });
+      setIsEditing(false);
+      setAvatarFile(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось обновить профиль",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSave = () => {
-    console.log("Сохранение профиля:", { username, avatar });
-    toast({
-      title: "Профиль обновлен",
-      description: "Ваши изменения успешно сохранены",
-    });
-    setIsEditing(false);
+    const formData = new FormData();
+    formData.append("username", username);
+    
+    if (avatarFile) {
+      formData.append("avatar", avatarFile);
+    }
+    
+    updateProfileMutation.mutate(formData);
   };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setAvatarFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
-        setAvatar(reader.result as string);
+        setAvatarPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
   };
 
+  const handleCancel = () => {
+    setIsEditing(false);
+    setUsername(profile?.username || "");
+    setAvatarPreview(profile?.avatarUrl || "");
+    setAvatarFile(null);
+  };
+
+  // Calculate XP progress
+  const calculateXPForNextLevel = (level: number) => {
+    return (level * level) * 100;
+  };
+
+  const currentXP = profile?.xp || 0;
+  const level = profile?.level || 1;
+  const xpForCurrentLevel = calculateXPForNextLevel(level - 1);
+  const xpForNextLevel = calculateXPForNextLevel(level);
+  const xpInCurrentLevel = currentXP - xpForCurrentLevel;
+  const xpRequiredForLevel = xpForNextLevel - xpForCurrentLevel;
+
+  if (isLoading || !profile) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-4 py-8 max-w-5xl">
+          <Skeleton className="h-12 w-64 mb-8" />
+          <div className="grid md:grid-cols-3 gap-8 mb-12">
+            <Card className="md:col-span-1">
+              <CardContent className="pt-6 flex flex-col items-center space-y-4">
+                <Skeleton className="h-32 w-32 rounded-full" />
+                <Skeleton className="h-10 w-32" />
+              </CardContent>
+            </Card>
+            <Card className="md:col-span-2">
+              <CardHeader>
+                <Skeleton className="h-6 w-32" />
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
-      <Header isAuthenticated username={username} avatarUrl={avatar} />
+      <Header />
       
       <main className="container mx-auto px-4 py-8 max-w-5xl">
         <h1 className="text-4xl font-bold mb-8">Мой профиль</h1>
@@ -81,7 +171,7 @@ export default function Profile() {
           <Card className="md:col-span-1">
             <CardContent className="pt-6 flex flex-col items-center text-center space-y-4">
               <Avatar className="h-32 w-32">
-                {avatar && <AvatarImage src={avatar} alt={username} />}
+                {avatarPreview && <AvatarImage src={avatarPreview} alt={username} />}
                 <AvatarFallback className="text-3xl">
                   {username.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
@@ -118,19 +208,22 @@ export default function Profile() {
                 </Button>
               ) : (
                 <div className="flex gap-2 w-full">
-                  <Button size="sm" onClick={handleSave} className="flex-1" data-testid="button-save-profile">
-                    Сохранить
+                  <Button 
+                    size="sm" 
+                    onClick={handleSave} 
+                    className="flex-1" 
+                    data-testid="button-save-profile"
+                    disabled={updateProfileMutation.isPending}
+                  >
+                    {updateProfileMutation.isPending ? "Сохранение..." : "Сохранить"}
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      setIsEditing(false);
-                      setUsername(mockUser.username);
-                      setAvatar(mockUser.avatarUrl);
-                    }}
+                    onClick={handleCancel}
                     className="flex-1"
                     data-testid="button-cancel-edit"
+                    disabled={updateProfileMutation.isPending}
                   >
                     Отмена
                   </Button>
@@ -155,23 +248,23 @@ export default function Profile() {
                   />
                 ) : (
                   <div className="flex items-center gap-3">
-                    <p className="text-2xl font-bold">{username}</p>
-                    <UserLevelBadge level={mockUser.level} />
+                    <p className="text-2xl font-bold" data-testid="text-username">{username}</p>
+                    <UserLevelBadge level={level} />
                   </div>
                 )}
               </div>
 
               <div className="space-y-2">
                 <Label>Email</Label>
-                <p className="text-muted-foreground">{mockUser.email}</p>
+                <p className="text-muted-foreground" data-testid="text-email">{profile.email}</p>
               </div>
 
               <div className="space-y-2">
                 <Label>Прогресс</Label>
                 <XPProgress
-                  currentXP={mockUser.currentXP}
-                  requiredXP={mockUser.requiredXP}
-                  level={mockUser.level}
+                  currentXP={xpInCurrentLevel}
+                  requiredXP={xpRequiredForLevel}
+                  level={level}
                 />
               </div>
             </CardContent>
@@ -186,27 +279,36 @@ export default function Profile() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {mockUser.commentsHistory.map((comment) => (
-                <Link key={comment.id} href={`/news/${comment.newsId}`}>
-                  <Card className="hover-elevate transition-all cursor-pointer">
-                    <CardContent className="p-4">
-                      <div className="space-y-2">
-                        <p className="font-semibold text-sm hover:text-primary transition-colors">
-                          {comment.newsTitle}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {comment.content}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {comment.createdAt}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
+            {profile.comments.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                У вас пока нет комментариев
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {profile.comments.map((comment) => (
+                  <Link key={comment.id} href={`/news/${comment.news.id}`}>
+                    <Card className="hover-elevate transition-all cursor-pointer">
+                      <CardContent className="p-4">
+                        <div className="space-y-2">
+                          <p className="font-semibold text-sm hover:text-primary transition-colors" data-testid={`text-comment-news-title-${comment.id}`}>
+                            {comment.news.title}
+                          </p>
+                          <p className="text-sm text-muted-foreground" data-testid={`text-comment-content-${comment.id}`}>
+                            {comment.content}
+                          </p>
+                          <p className="text-xs text-muted-foreground" data-testid={`text-comment-date-${comment.id}`}>
+                            {formatDistanceToNow(new Date(comment.createdAt), { 
+                              addSuffix: true, 
+                              locale: ru 
+                            })}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </main>

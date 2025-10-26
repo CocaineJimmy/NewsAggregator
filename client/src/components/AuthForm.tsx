@@ -4,31 +4,50 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AuthFormProps {
   mode: "login" | "register";
-  onSubmit?: (email: string, password: string, username?: string) => void;
 }
 
-export default function AuthForm({ mode, onSubmit }: AuthFormProps) {
+export default function AuthForm({ mode }: AuthFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { login, register } = useAuth();
+  const [, setLocation] = useLocation();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log(`${mode} submitted:`, { email, password, username });
-    
-    toast({
-      title: mode === "login" ? "Вход выполнен" : "Регистрация завершена",
-      description: mode === "login" 
-        ? `Добро пожаловать, ${email}!` 
-        : "Ваш аккаунт успешно создан!",
-    });
+    setIsLoading(true);
 
-    onSubmit?.(email, password, username);
+    try {
+      if (mode === "login") {
+        await login(email, password);
+        toast({
+          title: "Вход выполнен",
+          description: `Добро пожаловать!`,
+        });
+      } else {
+        await register(email, username, password);
+        toast({
+          title: "Регистрация завершена",
+          description: "Ваш аккаунт успешно создан!",
+        });
+      }
+      setLocation("/");
+    } catch (error: any) {
+      toast({
+        title: "Ошибка",
+        description: error.message || (mode === "login" ? "Ошибка входа" : "Ошибка регистрации"),
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -84,8 +103,8 @@ export default function AuthForm({ mode, onSubmit }: AuthFormProps) {
                 data-testid="input-password"
               />
             </div>
-            <Button type="submit" className="w-full" data-testid="button-submit">
-              {mode === "login" ? "Войти" : "Зарегистрироваться"}
+            <Button type="submit" className="w-full" disabled={isLoading} data-testid="button-submit">
+              {isLoading ? "Загрузка..." : mode === "login" ? "Войти" : "Зарегистрироваться"}
             </Button>
           </form>
           <p className="text-center text-sm text-muted-foreground mt-6">

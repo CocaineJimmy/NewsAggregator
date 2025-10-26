@@ -4,6 +4,8 @@ import ThemeToggle from "./ThemeToggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Menu, Newspaper } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,27 +23,29 @@ const categories = [
   { id: "sports", name: "Спорт" },
 ];
 
-interface HeaderProps {
-  isAuthenticated?: boolean;
-  isAdmin?: boolean;
-  username?: string;
-  avatarUrl?: string;
-}
-
-export default function Header({
-  isAuthenticated = false,
-  isAdmin = false,
-  username,
-  avatarUrl,
-}: HeaderProps) {
+export default function Header() {
   const [location, setLocation] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, isAuthenticated, logout } = useAuth();
+  const { toast } = useToast();
   
   const currentCategory = new URLSearchParams(location.split("?")[1] || "").get("category") || "all";
 
-  const handleLogout = () => {
-    console.log("Выход из системы");
-    setLocation("/");
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast({
+        title: "Выход выполнен",
+        description: "Вы успешно вышли из системы",
+      });
+      setLocation("/");
+    } catch (error: any) {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Ошибка при выходе",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -86,8 +90,8 @@ export default function Header({
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="rounded-full" data-testid="button-user-menu">
                     <Avatar className="h-8 w-8">
-                      {avatarUrl && <AvatarImage src={avatarUrl} alt={username} />}
-                      <AvatarFallback>{username?.slice(0, 2).toUpperCase()}</AvatarFallback>
+                      {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.username} />}
+                      <AvatarFallback>{user?.username?.slice(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
@@ -95,7 +99,7 @@ export default function Header({
                   <DropdownMenuItem onClick={() => setLocation("/profile")} data-testid="link-profile">
                     Профиль
                   </DropdownMenuItem>
-                  {isAdmin && (
+                  {user?.isAdmin && (
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => setLocation("/admin")} data-testid="link-admin">
