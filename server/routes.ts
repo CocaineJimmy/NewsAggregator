@@ -333,6 +333,10 @@ router.get("/api/bookmarks/:newsId", requireAuth, async (req: Request, res: Resp
 
 router.post("/api/bookmarks/:newsId", requireAuth, async (req: Request, res: Response) => {
   try {
+    const newsItem = await storage.getNewsById(req.params.newsId);
+    if (!newsItem) {
+      return res.status(404).json({ error: "Статья не найдена" });
+    }
     const isBookmarked = await storage.isBookmarked(req.session.userId!, req.params.newsId);
     if (isBookmarked) {
       await storage.removeBookmark(req.session.userId!, req.params.newsId);

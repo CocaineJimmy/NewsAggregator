@@ -76,6 +76,7 @@ export default function NewsDetail() {
   useEffect(() => {
     if (newsId) {
       queryClient.invalidateQueries({ queryKey: ["/api/news"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/news", newsId] });
     }
   }, [newsId]);
 
