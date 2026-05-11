@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "aPo4CzLDkGCu-hNI_TTGZ"
+uri = "file://dist/Диплом_Ксёнжик_исправленный.docx"
+type = "word_document"
+title = "Диплом — исправленная версия"
