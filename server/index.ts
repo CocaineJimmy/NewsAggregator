@@ -12,6 +12,9 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+// Required so secure session cookies work behind Replit's HTTPS proxy in production
+app.set("trust proxy", 1);
+
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
@@ -46,6 +49,7 @@ app.use(
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       httpOnly: true,
+      sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
     },
   })
